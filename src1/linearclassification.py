@@ -20,7 +20,7 @@ class LinearClassification:
 
     '''根据训练数据train_features,train_labels计算梯度更新参数W'''
 
-    def targetmul(self, b):
+    def targetmul(self, b, cnt):
         sum = 0.0
         lena = self.dim
         lenb = len(b)
@@ -28,23 +28,31 @@ class LinearClassification:
             raise TypeError("imcompatable length")
         else:
             for i in range(self.dim):
-                sum += self.param[i]*b[i]
-            sum += self.param[self.dim]
+                sum += self.param[cnt][i]*b[i]
+            sum += self.param[cnt][self.dim]
         return sum
 
-    def Dloss(self):
+    def Dloss(self, cnt):
         gradient = []
         for index in range(self.dim+1):
             loss = 0.0
             if index == self.dim:
                 for i in range(self.size):
-                    loss += (self.train_labels[i] - self.targetmul(self.train_features[i]))
-                loss -= self.Lambda * self.param[index]
+                    if int(self.train_labels[i][0]) == cnt + 1:
+                        label = 1.0
+                    else:
+                        label = 0.0
+                    loss += (label - self.targetmul(self.train_features[i], cnt))
+                loss -= self.Lambda * self.param[cnt][index]
 
             elif self.dim > index >= 0:
                 for i in range(self.size):
-                    loss += (self.train_labels[i] - self.targetmul(self.train_features[i])) * self.train_features[i][index]
-                loss -= self.Lambda * self.param[index]
+                    if int(self.train_labels[i][0]) == cnt + 1:
+                        label = 1.0
+                    else:
+                        label = 0.0
+                    loss += (label - self.targetmul(self.train_features[i], cnt)) * self.train_features[i][index]
+                loss -= self.Lambda * self.param[cnt][index]
 
             else:
                 raise TypeError("imcompatable length")
@@ -66,17 +74,23 @@ class LinearClassification:
         self.size = len(train_features)
         self.dim = len(train_features[0])
         self.param = []
-        for i in range(self.dim+1):
-            self.param.append(rd.random())
+        
+        for k in range(3):
+            param = [] 
 
-        for i in range(self.epochs):
-            grad = self.Dloss()
-            ts = torch.tensor(grad)
-            ts = ts / ts.norm(p=2)
-            print("loop{}:\nbefore:{}".format(i, str(self.param)))
-            for j in range(self.dim+1):
-                self.param[j] = self.param[j] + self.lr * ts[j].item()
-            print("after :{}".format(str(self.param)))
+            for i in range(self.dim+1):
+                param.append(rd.random())
+
+            self.param.append(param)
+
+            for i in range(self.epochs):
+                grad = self.Dloss(k)
+                ts = torch.tensor(grad)
+                ts = ts / ts.norm(p=2)
+                print("loop{}:\nbefore:{}".format(i, str(self.param[k])))
+                for j in range(self.dim+1):
+                    self.param[k][j] = self.param[k][j] + self.lr * ts[j].item()
+                print("after :{}".format(str(self.param[k])))
 
         self.save("./param.txt")
 
@@ -90,9 +104,13 @@ class LinearClassification:
         test_len = len(test_features)
         out = np.empty(shape=(test_len, 1), dtype=int)
         for i in range(test_len):
-            pred_raw = round(self.targetmul(test_features[i]))
-            out[i] = pred_raw
-
+            pred = []
+            for j in range(3):
+                pred_raw = (self.targetmul(test_features[i], j))
+                pred.append(pred_raw)
+            pred_final = pred.index(max(pred)) + 1
+            print("test_case[{}]:res:{},pred:{}".format(i, str(pred), pred_final))
+            out[i] = pred_final
         return out
 
 def main():
