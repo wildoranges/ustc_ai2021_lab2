@@ -8,12 +8,16 @@ def sigmoid(z):
     return 1.0 / (1.0 + np.exp(-z))
 
 
-def dsigmoid(z):
-    return np.multiply(z, 1.0 - z)
+def dsigmoid(fz):
+    return np.multiply(fz, 1.0 - fz)
+
+
+def softmax(z):
+    return np.exp(z) / sum(np.exp(z))
 
 
 class MLP(object):
-    def __init__(self, lr=0.1, epsilon=1e-3, epoch=10000, size=None):
+    def __init__(self, lr=0.1, epsilon=1e-3, epoch=1000, size=None):
         if size is None:
             size = [5, 4, 4, 3]
         self.lr = lr
@@ -22,17 +26,15 @@ class MLP(object):
         self.size = size
         self.W = []
         self.b = []
-        self.init()
-
-    def init(self):
         for i in range(len(self.size) - 1):
-            self.W.append(np.mat(np.random.uniform(-0.5, 0.5, size=(self.size[i + 1], self.size[i]))))
-            self.b.append(np.mat(np.random.uniform(-0.5, 0.5, size=(self.size[i + 1], 1))))
+            self.W.append(np.mat(np.random.uniform(0.0, 1.0, size=(self.size[i + 1], self.size[i]))))
+            self.b.append(np.mat(np.random.uniform(0.0, 1.0, size=(self.size[i + 1], 1))))
 
     def FP(self, item):
         a = [item]
         for index in range(len(self.W)):
             a.append(sigmoid(self.W[index] * a[-1] + self.b[index]))
+        a[-1] = softmax(a[-1])
         return a
 
     def BP(self, label, a):
@@ -53,7 +55,7 @@ class MLP(object):
 
         ln = np.log(a[-1])
         loss = np.dot(label.T, ln)
-        return loss
+        return abs(loss)
 
     def fit(self, train_data, tran_label, show=False):
         plt.ion()
@@ -87,7 +89,7 @@ class MLP(object):
         out = np.zeros(shape=(test_data.shape[0], self.size[-1]))
         for index in range(test_data.shape[0]):
             res = self.FP(test_data[index])
-            out[index] = res[-1]
+            out[index] = softmax(res[-1])
         return out
 
 
@@ -95,7 +97,7 @@ def main():
     train_size = 100
     train_dim = 5
     label_dim = 3
-    train_data = np.mat(np.random.uniform(-1.0, 1.0, size=(train_size, train_dim)))
+    train_data = np.mat(np.random.uniform(0.0, 1.0, size=(train_size, train_dim)))
     train_label = np.zeros(shape=(train_size, label_dim))
     for index in range(train_data.shape[0]):
         label = random.randint(0, label_dim - 1)
