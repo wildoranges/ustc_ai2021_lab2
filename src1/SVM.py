@@ -61,7 +61,7 @@ class SupportVectorMachine:
             for i in range(line):
                 cur_line = x[i]
                 for j in range(column):
-                    print("calculating G[{}][{}]".format(i, j))
+                    #print("calculating G[{}][{}]".format(i, j))
                     cur_column = y[:, j]
                     out[i][j] = self.KERNEL(cur_line, cur_column, kernel, d, sigma)
 
@@ -112,7 +112,7 @@ def main():
     # kernel为核函数类型，可能的类型有'Linear'/'Poly'/'Gauss'
     # C为软间隔参数；
     # Epsilon为拉格朗日乘子阈值，低于此阈值时将该乘子设置为0
-    kernel = 'Linear'
+    kernel = 'Poly'
     C = 1
     Epsilon = 10e-5
     # 生成SVM分类器
