@@ -124,10 +124,10 @@ class MLP(object):
             if abs(avg_loss) < abs(self.epsilon):
                 print("finish train at loop{}".format(i + 1))
                 plt.show()
-                plt.savefig("./MLP-{}.png".format(strftime("%Y-%m-%d %H:%M:%S")))
+                plt.savefig("./MLP-{}.png".format(strftime("%Y-%m-%d-%H-%M-%S")))
                 return
         plt.show()
-        plt.savefig("./MLP-{}.png".format(strftime("%Y-%m-%d %H:%M:%S")))
+        plt.savefig("./MLP-{}.png".format(strftime("%Y-%m-%d-%H-%M-%S")))
         return
 
     def predict(self, test_data):
