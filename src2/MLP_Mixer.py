@@ -5,8 +5,8 @@ from torchvision.datasets import MNIST
 
 # 禁止import除了torch以外的其他包，依赖这几个包已经可以完成实验了
 
-#device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device = torch.device("cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+#device = torch.device("cpu")
 
 class Mixer_Layer(nn.Module):
     def __init__(self, patch_size, hidden_dim):
@@ -31,8 +31,8 @@ class Mixer_Layer(nn.Module):
     def forward(self, x):
         ########################################################################
         x = self.norm1(x)
-        mixed_token = self.mlp1(x.transpose(1, 2))
-        x = x + mixed_token.transpose(1, 2)
+        mixed_token = self.mlp1(x.transpose(-2, -1))
+        x = x + mixed_token.transpose(-1, -2)
         ########################################################################
         x2 = self.norm2(x)
         mixed_channel = self.mlp2(x2)
@@ -67,8 +67,9 @@ class MLPMixer(nn.Module):
         input_data = input_data.reshape(
             (input_data.shape[0], input_data.shape[1], input_data.shape[2], input_data.shape[3] * input_data.shape[4]))
         out = self.mix_model(input_data)
-        out = torch.mean(out, dim=1)
+        out = torch.mean(out, dim=-2)
         out = self.out_model(out)
+        out = torch.softmax(out, dim=-1)
         return out
         ########################################################################
         # 注意维度的变化
@@ -80,8 +81,9 @@ def train(model, train_loader, optimizer, n_epochs, criterion):
     model.train()
     for epoch in range(n_epochs):
         for batch_idx, (data, target) in enumerate(train_loader):
-            #data, target = data.to(device), target.to(device)
+            data, target = data.to(device), target.to(device)
             out_label = model(data)
+            out_label = out_label.reshape(shape=(out_label.shape[0], 10))
             loss = criterion(out_label, target)
             optimizer.zero_grad()
             loss.backward()
@@ -98,21 +100,40 @@ def train(model, train_loader, optimizer, n_epochs, criterion):
 
 def test(model, test_loader, criterion):
     model.eval()
-    test_loss = 0.
+    test_loss = 0.0
     num_correct = 0  # correct的个数
+    total_cnt = 0
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
+            out_label = model(data)
+            out_label = out_label.reshape(shape=(out_label.shape[0], 10))
+            cur_loss = criterion(out_label, target)
+            test_loss += cur_loss
+            for i in range(len(out_label)):
+                total_cnt += 1
+                cur_batch = out_label[i]
+                cur_batch = cur_batch.reshape(shape=(cur_batch.shape[-1],))
+                pred_target = cur_batch.argmax()
+                if int(target[i]) == (pred_target):
+                    num_correct += 1
+                
+        test_loss = test_loss / (len(test_loader))
+        accuracy = num_correct / total_cnt
+                
+
+
+
 
         ########################################################################
         # 需要计算测试集的loss和accuracy
 
         ########################################################################
-        #print("Test set: Average loss: {:.4f}\t Acc {:.2f}".format(test_loss.item(), accuracy))
+        print("Test set: Average loss: {:.4f}\t Acc {:.2f}".format(test_loss.item(), accuracy))
 
 
 if __name__ == '__main__':
-    n_epochs = 5
+    n_epochs = 10
     batch_size = 128
     learning_rate = 1e-3
 
@@ -131,11 +152,12 @@ if __name__ == '__main__':
     ########################################################################
     model = MLPMixer(patch_size=4, hidden_dim=4, depth=4).to(device)  # 参数自己设定，其中depth必须大于1
     # 这里需要调用optimizer，criterion(交叉熵)
-    criterion = nn.CrossEntropyLoss
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.05, momentum=0.8)
+    criterion = nn.CrossEntropyLoss()
+    optimizer1 = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.8)
+    optimizer2 = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 
     ########################################################################
 
-    train(model, train_loader, optimizer, n_epochs, criterion)
+    train(model, train_loader, optimizer2, n_epochs, criterion)
     test(model, test_loader, criterion)
