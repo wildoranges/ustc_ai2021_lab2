@@ -69,7 +69,7 @@ class MLPMixer(nn.Module):
         out = self.mix_model(input_data)
         out = torch.mean(out, dim=-2)
         out = self.out_model(out)
-        out = torch.softmax(out, dim=-1)
+        #out = torch.softmax(out, dim=-1)
         return out
         ########################################################################
         # 注意维度的变化
@@ -102,7 +102,6 @@ def test(model, test_loader, criterion):
     model.eval()
     test_loss = 0.0
     num_correct = 0  # correct的个数
-    total_cnt = 0
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
@@ -111,7 +110,6 @@ def test(model, test_loader, criterion):
             cur_loss = criterion(out_label, target)
             test_loss += cur_loss
             for i in range(len(out_label)):
-                total_cnt += 1
                 cur_batch = out_label[i]
                 cur_batch = cur_batch.reshape(shape=(cur_batch.shape[-1],))
                 pred_target = cur_batch.argmax()
@@ -119,12 +117,7 @@ def test(model, test_loader, criterion):
                     num_correct += 1
                 
         test_loss = test_loss / (len(test_loader))
-        accuracy = num_correct / total_cnt
-                
-
-
-
-
+        accuracy = num_correct / (len(test_loader.dataset))
         ########################################################################
         # 需要计算测试集的loss和accuracy
 
@@ -150,7 +143,7 @@ if __name__ == '__main__':
                                               pin_memory=True)
 
     ########################################################################
-    model = MLPMixer(patch_size=4, hidden_dim=4, depth=4).to(device)  # 参数自己设定，其中depth必须大于1
+    model = MLPMixer(patch_size=4, hidden_dim=50, depth=4).to(device)  # 参数自己设定，其中depth必须大于1
     # 这里需要调用optimizer，criterion(交叉熵)
     criterion = nn.CrossEntropyLoss()
     optimizer1 = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.8)
