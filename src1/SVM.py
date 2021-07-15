@@ -1,5 +1,5 @@
 import numpy as np
-import cvxpy as cp  # 用于求解线性规划
+import cvxpy as cp  #用于求解线性规划
 from process_data import load_and_process_data
 from evaluation import get_micro_F1, get_macro_F1, get_acc
 
@@ -49,7 +49,7 @@ class SupportVectorMachine:
     预测结果的数据类型应为np数组，shape=(test_num,1) test_num为测试数据的数目
     '''
 
-    def kernel_matmul(self, x, y, kernel='Gauss', d=2, sigma=1):
+    def kernel_matmul(self, x, y, kernel='Gauss', d=2, sigma=1):#Gauss核没法直接用，进行一步封装，对行、列向量调用Gauss核求解内积
         if kernel != 'Gauss':
             return self.KERNEL(x, y, kernel, d, sigma)
         line = x.shape[0]
@@ -78,18 +78,25 @@ class SupportVectorMachine:
         dim = train_data.shape[1]
         self.dim = dim
         shape = (size, 1)
-        lagrange = cp.Variable(shape, pos=True)
+        lagrange = cp.Variable(shape, pos=True)#lagrange乘子
         res = self.kernel_matmul(train_label * train_data, (train_label * train_data).transpose(), kernel=self.kernel)
-        obj = cp.Maximize(cp.sum(lagrange) - (1 / 2) * cp.quad_form(lagrange, res))
-        const = [lagrange >= self.Epsilon, lagrange <= self.C, cp.sum(cp.multiply(lagrange, train_label)) == 0.0]
+        obj = cp.Maximize(cp.sum(lagrange) - (1 / 2) * cp.quad_form(lagrange, res))#要优化的目标函数
+        const = [lagrange >= 0.0, lagrange <= self.C, cp.sum(cp.multiply(lagrange, train_label)) == 0.0]#限制条件
         problem = cp.Problem(obj, const)
         res_final = problem.solve()
-        self.param['w'] = np.sum(lagrange.value * train_label * train_data, axis=0)
-        for i in range(lagrange.value.shape[0]):
-            if lagrange.value[i] > self.Epsilon:
-                self.param['b'] = train_label[i] - np.dot(self.param['w'].T, train_data[i])
-                break
-
+        lag_value = lagrange.value
+        for i in range(lagrange.value.shape[0]):#小于epsilon的设为0
+            if lag_value[i] < self.Epsilon:
+                lag_value[i] = 0.0
+        self.param['w'] = np.sum(lag_value * train_label * train_data, axis=0)
+        total_sv = 0
+        total_b = 0.0
+        for i in range(lagrange.value.shape[0]):#对b求均值
+            if lag_value[i] > 0.0:
+                total_sv += 1
+                total_b += (train_label[i] - np.dot(self.param['w'].T, train_data[i]))
+        
+        self.param['b'] = total_b / total_sv
         out = np.zeros(shape=(len(test_data), 1), dtype=float)
         for i in range(len(test_data)):
             out[i] = np.dot(self.param['w'].T, test_data[i]) + self.param['b']

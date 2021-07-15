@@ -21,7 +21,7 @@ class NaiveBayes:
     建议全部取log，避免相乘为0
     '''
 
-    def fit(self, traindata, trainlabel, featuretype):
+    def fit(self, traindata, trainlabel, featuretype):#统计连续数据的均值、方差，离散数据的条件概率等
         '''
         需要你实现的部分
         '''
@@ -37,13 +37,13 @@ class NaiveBayes:
         for i in range(size):
             cur_data = traindata[i]
             cur_label = trainlabel[i]
-            self.Labels.add(cur_label[0])
+            self.Labels.add(cur_label[0])#记录所有label
             try:
-                single_kind[cur_label[0]] += 1
+                single_kind[cur_label[0]] += 1 #每种label的数量
             except KeyError:
                 single_kind[cur_label[0]] = 1
             for j in range(dim):
-                if featuretype[j] == 0:
+                if featuretype[j] == 0:#统计离散数据在每个label下的总数
                     label_map = None
                     index_map = None
                     x_sum = None
@@ -67,7 +67,7 @@ class NaiveBayes:
                         continue
                     total[cur_label[0]][j][cur_data[j]] = x_sum + 1
 
-                else:
+                else:#统计连续数据均值，方差
                     cnt_label = None
                     avg_label = None
                     cnt_index = None
@@ -94,7 +94,7 @@ class NaiveBayes:
                     avg[cur_label[0]][j] = avg_index + cur_data[j]
                     cnt[cur_label[0]][j] = cnt_index + 1
 
-        for k, v in avg.items():
+        for k, v in avg.items():#计算均值
             for index, s in v.items():
                 avg[k][index] = s / cnt[k][index]
 
@@ -112,24 +112,24 @@ class NaiveBayes:
 
         for label in self.Labels:
             self.Pxc[label] = {}
-            self.Pc[label] = (single_kind[label] + 1) / (size + len(self.Labels))
+            self.Pc[label] = (single_kind[label] + 1) / (size + len(self.Labels))#先验概率
             for i in range(dim):
                 if featuretype[i] == 0:
                     self.Pxc[label][i] = {}
 
         for k, v in variance.items():
             for index, s in v.items():
-                variance[k][index] = s / cnt[k][index]
-                self.Pxc[k][index] = (avg[k][index], variance[k][index])
+                variance[k][index] = s / cnt[k][index]#计算出方差
+                self.Pxc[k][index] = (avg[k][index], variance[k][index])#记录均值方差
 
         for label, v in total.items():
             for index, all_x in v.items():
                 for x, s in all_x.items():
-                    self.Pxc[label][index][x] = (s + 1) / (single_kind[label] + len(all_x))
+                    self.Pxc[label][index][x] = (s + 1) / (single_kind[label] + len(all_x))#离散数据的条件概率
 
         return
 
-    def gauss_prob(self, avg, var, x):
+    def gauss_prob(self, avg, var, x):#根据均值，方差，x，来计算高斯分布的概率密度
         sqrt2pi = 2.5066282746310002  # sqrt(2 * pi)
         coefficient = 1 / (sqrt2pi * math.sqrt(var))
         prob = coefficient * math.exp(-(((x - avg) ** 2) / (2 * var)))
@@ -149,21 +149,21 @@ class NaiveBayes:
         out = np.empty(shape=(test_len, 1), dtype=int)
         for index in range(test_len):
             cur_data = features[index]
-            maxP = 0.0
+            maxP = float("-inf")
             predict_label = 0
             for label in self.Labels:
-                prob = 1.0
+                prob = 0.0
                 for i in range(self.dim):
-                    if featuretype[i] == 0:
-                        prob = prob * self.Pxc[label][i][cur_data[i]]
+                    if featuretype[i] == 0:#条件概率
+                        prob = prob + math.log(self.Pxc[label][i][cur_data[i]])
                     else:
-                        avg, var = self.Pxc[label][i]
-                        prob = prob * self.gauss_prob(avg, var, cur_data[i])
-                if prob >= maxP:
+                        avg, var = self.Pxc[label][i] #概率密度
+                        prob = prob + math.log(self.gauss_prob(avg, var, cur_data[i]))
+                if prob >= maxP:#取概率最大的
                     predict_label = label
                     maxP = prob
             out[index] = predict_label
-            print("test data {},prob={},label={}".format(index, maxP, predict_label))
+            #print("test data {},prob={},label={}".format(index, maxP, predict_label))
         return out
 
 

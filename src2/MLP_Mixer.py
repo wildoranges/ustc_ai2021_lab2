@@ -15,12 +15,12 @@ class Mixer_Layer(nn.Module):
         # 这里需要写Mixer_Layer（layernorm，mlp1，mlp2，skip_connection）
         self.norm1 = nn.LayerNorm(hidden_dim)
         self.norm2 = nn.LayerNorm(hidden_dim)
-        self.mlp1 = nn.Sequential(
+        self.mlp1 = nn.Sequential(#第一个mlp，在patch层mix
             nn.Linear((28 // patch_size) ** 2, (28 // patch_size) ** 2),
             nn.GELU(),
             nn.Linear((28 // patch_size) ** 2, (28 // patch_size) ** 2),
         )
-        self.mlp2 = nn.Sequential(
+        self.mlp2 = nn.Sequential(#第二个mlp,在channel层mix
             nn.Linear(hidden_dim, hidden_dim),
             nn.GELU(),
             nn.Linear(hidden_dim, hidden_dim),
@@ -30,13 +30,13 @@ class Mixer_Layer(nn.Module):
 
     def forward(self, x):
         ########################################################################
-        x = self.norm1(x)
-        mixed_token = self.mlp1(x.transpose(-2, -1))
-        x = x + mixed_token.transpose(-1, -2)
+        x1 = self.norm1(x)
+        mixed_token = self.mlp1(x1.transpose(-2, -1))
+        x = x + mixed_token.transpose(-1, -2)#实现skip_connection
         ########################################################################
         x2 = self.norm2(x)
         mixed_channel = self.mlp2(x2)
-        return x + mixed_channel
+        return x + mixed_channel#skip_connection
 
 
 class MLPMixer(nn.Module):
@@ -51,11 +51,12 @@ class MLPMixer(nn.Module):
         self.hidden_dim = hidden_dim
         self.depth = depth
         self.mix_model = nn.Sequential(
-            nn.Linear(patch_size ** 2, hidden_dim),
-            *[Mixer_Layer(patch_size=patch_size, hidden_dim=hidden_dim) for _ in range(depth)],
+            nn.Linear(patch_size ** 2, hidden_dim),#Pre-patch Fully-connected
+            *[Mixer_Layer(patch_size=patch_size, hidden_dim=hidden_dim) for _ in range(depth)],#mix layer
             nn.LayerNorm(hidden_dim),
         )
-        self.out_model = nn.Linear(hidden_dim, 10)
+        #Global Average Pooling在下面的forward中
+        self.out_model = nn.Linear(hidden_dim, 10)#Fully-connected
 
         ########################################################################
 
@@ -66,8 +67,11 @@ class MLPMixer(nn.Module):
         input_data = torch.cat(patch_data, dim=2)
         input_data = input_data.reshape(
             (input_data.shape[0], input_data.shape[1], input_data.shape[2], input_data.shape[3] * input_data.shape[4]))
+        '''
+        以上为将数据分成patches
+        '''
         out = self.mix_model(input_data)
-        out = torch.mean(out, dim=-2)
+        out = torch.mean(out, dim=-2)#均值,Global Average Pooling
         out = self.out_model(out)
         #out = torch.softmax(out, dim=-1)
         return out
@@ -82,12 +86,12 @@ def train(model, train_loader, optimizer, n_epochs, criterion):
     for epoch in range(n_epochs):
         for batch_idx, (data, target) in enumerate(train_loader):
             data, target = data.to(device), target.to(device)
-            out_label = model(data)
+            out_label = model(data)#数据的分patch在forward时处理，不在这处理
             out_label = out_label.reshape(shape=(out_label.shape[0], 10))
-            loss = criterion(out_label, target)
-            optimizer.zero_grad()
+            loss = criterion(out_label, target)#计算loss
+            optimizer.zero_grad()#梯度清零
             loss.backward()
-            optimizer.step()
+            optimizer.step()#train
 
             ########################################################################
             # 计算loss并进行优化
@@ -113,7 +117,7 @@ def test(model, test_loader, criterion):
                 cur_batch = out_label[i]
                 cur_batch = cur_batch.reshape(shape=(cur_batch.shape[-1],))
                 pred_target = cur_batch.argmax()
-                if int(target[i]) == (pred_target):
+                if int(target[i]) == (pred_target):#计算正确个数
                     num_correct += 1
                 
         test_loss = test_loss / (len(test_loader))
@@ -126,7 +130,7 @@ def test(model, test_loader, criterion):
 
 
 if __name__ == '__main__':
-    n_epochs = 10
+    n_epochs = 5
     batch_size = 128
     learning_rate = 1e-3
 
@@ -143,7 +147,7 @@ if __name__ == '__main__':
                                               pin_memory=True)
 
     ########################################################################
-    model = MLPMixer(patch_size=4, hidden_dim=50, depth=4).to(device)  # 参数自己设定，其中depth必须大于1
+    model = MLPMixer(patch_size=4, hidden_dim=100, depth=5).to(device)  # 参数自己设定，其中depth必须大于1
     # 这里需要调用optimizer，criterion(交叉熵)
     criterion = nn.CrossEntropyLoss()
     optimizer1 = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.8)
